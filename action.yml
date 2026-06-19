@@ -1,0 +1,65 @@
+name: otel-policy-lab
+description: Evaluate OTLP JSON fixtures against telemetry governance policies in CI.
+
+inputs:
+  collector-config:
+    description: Path to the OpenTelemetry Collector config YAML.
+    required: true
+  input:
+    description: Path to the OTLP JSON fixture.
+    required: true
+  policy:
+    description: Path to the policy YAML.
+    required: true
+  report:
+    description: Optional JSON report output path.
+    required: false
+    default: report.json
+  fail-on-warn:
+    description: Exit non-zero when warnings are emitted.
+    required: false
+    default: "false"
+  validate-collector:
+    description: Run otelcol validate before policy evaluation.
+    required: false
+    default: "false"
+  otelcol-bin:
+    description: otelcol binary path or name used for validation.
+    required: false
+    default: otelcol
+  go-version:
+    description: Go toolchain version used to build otel-policy-lab.
+    required: false
+    default: "1.22.4"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Build otel-policy-lab
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        CGO_ENABLED: "0"
+        GOTOOLCHAIN: local
+      run: |
+        go build -ldflags "-X main.version=action" -o "${RUNNER_TEMP}/otel-policy-lab" ./cmd/otel-policy-lab
+
+    - name: Run policy checks
+      shell: bash
+      run: |
+        args=(
+          test
+          --collector-config "${{ inputs.collector-config }}"
+          --input "${{ inputs.input }}"
+          --policy "${{ inputs.policy }}"
+          --report "${{ inputs.report }}"
+          --fail-on-warn=${{ inputs.fail-on-warn }}
+        )
+        if [[ "${{ inputs.validate-collector }}" == "true" ]]; then
+          args+=(--validate-collector --otelcol-bin "${{ inputs.otelcol-bin }}")
+        fi
+        "${RUNNER_TEMP}/otel-policy-lab" "${args[@]}"

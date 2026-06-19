@@ -1,0 +1,39 @@
+version: 1
+assertions:
+  logs:
+    case_insensitive: true
+    forbidden_attributes:
+      - authorization
+      - password
+      - request.body
+      - "http.request.header.*"
+    forbidden_value_patterns:
+      - "(?i)bearer\\s+[a-z0-9._-]+"
+      - "(?i)password="
+    forbidden_body_patterns:
+      - "(?i)password="
+      - "(?i)authorization:"
+    required_resource_attributes:
+      - service.name
+      - deployment.environment
+  traces:
+    preserve:
+      - status.code == "ERROR"
+    case_insensitive: true
+    forbidden_attributes:
+      - authorization
+      - password
+      - "http.request.header.*"
+    forbidden_value_patterns:
+      - "(?i)bearer\\s+[a-z0-9._-]+"
+    required_resource_attributes:
+      - service.name
+  metrics:
+    case_insensitive: true
+    forbidden_labels:
+      - user.id
+      - session.id
+      - request.id
+    max_series_per_metric: 10000
+    required_resource_attributes:
+      - service.name

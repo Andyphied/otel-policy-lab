@@ -1,0 +1,22 @@
+name: example policy check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  otel-policy-lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.4'
+
+      - name: Run example policy check
+        uses: ./
+        with:
+          collector-config: ./examples/collector.yaml
+          input: ./examples/fixtures/checkout.otlp.json
+          policy: ./examples/policy-pass.yaml
+          report: ./report.json

@@ -1,0 +1,56 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+  attributes/redact_secrets:
+    actions:
+      - action: delete
+        key: authorization
+      - action: delete
+        key: password
+      - action: delete
+        key: request.body
+
+  filter/drop_debug_logs:
+    logs:
+      include:
+        match_type: regexp
+        expressions:
+          - body matches ".*debug.*"
+
+  attributes/drop_high_cardinality:
+    actions:
+      - action: delete
+        key: user.id
+      - action: delete
+        key: session.id
+      - action: delete
+        key: request.id
+
+exporters:
+  otlp:
+    endpoint: observability-backend:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [attributes/redact_secrets, filter/drop_debug_logs, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [attributes/redact_secrets, batch]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [attributes/drop_high_cardinality, batch]
+      exporters: [otlp]
