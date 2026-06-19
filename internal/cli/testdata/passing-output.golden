@@ -1,0 +1,14 @@
+PASS no forbidden log resource attributes, attributes, values, or bodies exported
+PASS all logs include service.name, deployment.environment
+PASS 100% of error traces preserved (fixture-local; runner does not drop spans)
+PASS no forbidden span resource attributes, attributes, values, or names exported
+PASS all traces include service.name
+PASS no forbidden metric resource attributes, labels, or label values exported
+PASS all metrics within 30,000 series limit
+PASS all metrics include service.name
+WARN log volume reduced by 71%; verify debug logs are not over-filtered
+WARN fixture runner partially simulated processor filter/drop_debug_logs; full filter/OTTL semantics are not supported
+WARN fixture runner does not simulate span dropping or sampling; trace preservation checks are fixture-local
+
+Runner: fixture (simulated processors: 4, unsupported processors: 0)
+Result: WARN (8 pass, 0 fail, 3 warn)
