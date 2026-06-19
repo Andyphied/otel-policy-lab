@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "overall_status": "PASS",
+  "pass_count": 1,
+  "fail_count": 0,
+  "warn_count": 0,
+  "checks": [
+    {
+      "status": "PASS",
+      "signal": "logs",
+      "check": "forbidden_attributes",
+      "message": "ok"
+    }
+  ],
+  "input": {
+    "path": "in.json",
+    "size_bytes": 10
+  },
+  "policy": {
+    "path": "policy.yaml",
+    "size_bytes": 20
+  },
+  "collector_config": {
+    "path": "collector.yaml",
+    "size_bytes": 30
+  },
+  "runner": {
+    "name": "fixture",
+    "simulated_processors": [
+      "batch"
+    ]
+  },
+  "timestamp": "2026-06-17T12:00:00Z",
+  "summary": {
+    "input_log_count": 7,
+    "output_log_count": 2,
+    "input_span_count": 0,
+    "output_span_count": 0,
+    "input_metric_count": 0,
+    "output_metric_count": 0,
+    "input_unique_series_count": 0,
+    "output_unique_series_count": 0
+  }
+}
