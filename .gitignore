@@ -1,0 +1,33 @@
+# Binaries
+otel-policy-lab
+/bin/
+/dist/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+report.json
+report-*.json
+coverage.out
+coverage.html
+.cursor/
+.githooks
