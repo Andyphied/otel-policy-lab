@@ -144,7 +144,7 @@ func TestRunJSONReportRedactsRequiredResourceSecrets(t *testing.T) {
 	code := Run([]string{
 		"otel-policy-lab", "test",
 		"--collector-config", filepath.Join(testdata, "report-secret-collector.yaml"),
-		"--input", filepath.Join(testdata, "report-secret-fixture.otlp.json"),
+		"--input", filepath.Join(testdata, "secret-redaction-fixture.otlp.json"),
 		"--policy", filepath.Join(testdata, "report-secret-policy.yaml"),
 		"--report", reportPath,
 	})
