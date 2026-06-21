@@ -1,10 +1,10 @@
 # otel-policy-lab
 
-A local and CI policy-testing harness for representative OpenTelemetry telemetry fixtures.
+**Catch dangerous OpenTelemetry Collector config changes in CI — before they drop error traces, leak secrets, or blow up your metrics bill.**
 
-`otel-policy-lab` treats observability pipeline changes like code. You give it a representative OTLP telemetry fixture, your Collector config, and a separate policy file; it evaluates the telemetry against your policies and produces a CI-friendly pass/fail report.
+A misconfigured Collector processor can silently export an `authorization` header, delete the error spans you need during an incident, or multiply metric cardinality overnight. `otel-policy-lab` treats these as testable regressions: you give it a representative OTLP fixture, your Collector config, and a separate policy file, and it produces a CI-friendly pass/fail report.
 
-It does not replace the OpenTelemetry Collector or run your full pipeline. It is a fast, honest guardrail for catching a specific class of telemetry-policy regressions before they ship: leaked secrets, missing resource attributes, forbidden labels, cardinality blowups, and dropped error traces when evaluated output differs from input.
+It does **not** replace the Collector or run your production pipeline. It is a fast, honest guardrail with an explicit confidence model — it tells you what it simulated and what it did not.
 
 > Treat observability pipeline changes like code: testable, reviewable, and safe before production.
 
@@ -13,7 +13,7 @@ It does not replace the OpenTelemetry Collector or run your full pipeline. It is
 OpenTelemetry Collector configurations are powerful and risky. A misconfigured processor can:
 
 - drop error traces during an incident
-- export secrets in log attributes
+- export secrets in log attributes or resource attributes
 - explode metric cardinality and observability cost
 
 Collector already handles receiving, processing, transforming, filtering, sampling, batching, and exporting telemetry. This tool does **not** replace Collector. It sits outside the runtime path and validates representative telemetry using fixtures, explicit policy assertions, and a deliberately narrow simulated runner.
@@ -34,7 +34,7 @@ Telemetry fixture -> Collector config -> Captured output -> Policy assertions
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.22.4 (matches `go.mod`; use `GOTOOLCHAIN=local` if your installed toolchain is newer)
 
 ### Build
 
@@ -133,7 +133,7 @@ Use the repository action in CI. The action provisions Go, builds from the check
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: andyphied/otel-policy-lab@main
+  - uses: andyphied/otel-policy-lab@v0.1.0
     with:
       collector-config: ./collector.yaml
       input: ./fixtures/checkout.otlp.json
@@ -141,11 +141,9 @@ steps:
       report: ./otel-policy-report.json
 ```
 
-Pin to a release tag such as `@v0.1.0` once published.
-
 ## MVP runner note
 
-The default `fixture` runner is deterministic and simulates a small subset of Collector processor behavior (attribute deletion and narrow debug log filtering). It does **not** execute a real Collector binary.
+The default `fixture` runner is deterministic and simulates a small subset of Collector processor behavior: attribute deletion on resource attributes, signal attributes, and metric labels, plus narrow debug log filtering. It does **not** execute a real Collector binary.
 
 The runner emits warnings when processors are unsupported or only partially simulated. Those warnings are part of the tool's confidence model: a pass with unsupported processors should not be treated as proof of production behavior.
 

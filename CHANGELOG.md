@@ -26,4 +26,10 @@ All notable changes to this project are documented in this file.
 
 ### Documentation
 
-- Documented Go/pdata version pinning, span event scanning scope, and report redaction behavior.
+- Documented Go/pdata version pinning, span event scanning scope, report redaction, vacuous passes on empty signals, and fixture runner label deletion behavior.
+- README opening reframed around failure modes; action example pins `@v0.1.0`.
+
+### Tooling
+
+- Added `.golangci.yml`, CI action-smoke job, and `go-version-file: go.mod` in CI and composite action.
+- Added traces-only/metrics-only OTLP parse tests and traces/metrics required-resource redaction tests.

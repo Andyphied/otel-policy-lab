@@ -27,17 +27,13 @@ inputs:
     description: otelcol binary path or name used for validation.
     required: false
     default: otelcol
-  go-version:
-    description: Go toolchain version used to build otel-policy-lab.
-    required: false
-    default: "1.22.4"
 
 runs:
   using: composite
   steps:
     - uses: actions/setup-go@v5
       with:
-        go-version: ${{ inputs.go-version }}
+        go-version-file: ${{ github.action_path }}/go.mod
 
     - name: Build otel-policy-lab
       shell: bash

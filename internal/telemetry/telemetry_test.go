@@ -70,6 +70,38 @@ func TestParseLogsOnlyFixture(t *testing.T) {
 	}
 }
 
+func TestParseTracesOnlyFixture(t *testing.T) {
+	data := []byte(`{
+  "resourceSpans": [{
+    "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "checkout"}}]},
+    "scopeSpans": [{"spans": [{"traceId": "00000000000000000000000000000001", "spanId": "0000000000000001", "name": "checkout", "status": {"code": "STATUS_CODE_ERROR"}, "attributes": []}]}]
+  }]
+}`)
+	set, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Spans) != 1 || len(set.Logs) != 0 || len(set.Metrics) != 0 {
+		t.Fatalf("set = %+v", set)
+	}
+}
+
+func TestParseMetricsOnlyFixture(t *testing.T) {
+	data := []byte(`{
+  "resourceMetrics": [{
+    "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "checkout"}}]},
+    "scopeMetrics": [{"metrics": [{"name": "http.server.duration", "sum": {"dataPoints": [{"attributes": [{"key": "route", "value": {"stringValue": "/a"}}]}]}}]}]
+  }]
+}`)
+	set, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set.Metrics) != 1 || len(set.Logs) != 0 || len(set.Spans) != 0 {
+		t.Fatalf("set = %+v", set)
+	}
+}
+
 func TestParseRejectsInvalidJSON(t *testing.T) {
 	_, err := Parse([]byte(`{"resourceLogs": [`))
 	if err == nil || !strings.Contains(err.Error(), "parse fixture json") {

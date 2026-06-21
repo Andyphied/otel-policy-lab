@@ -127,3 +127,20 @@ Mitigation:
 - use policies as CI gates, not the only control
 - monitor production cardinality, volume, and error trace rates
 - review policy changes with platform and service owners
+
+## Vacuous passes on empty signals
+
+If a policy asserts `forbidden_*` checks for a signal but the evaluated output contains zero records of that signal, the forbidden check passes because there is nothing to match.
+
+Example: a logs-only fixture with trace forbidden-attribute rules passes trace checks vacuously.
+
+Mitigation:
+
+- include representative records for every signal you assert against
+- treat missing-signal passes as a fixture coverage smell, not proof of safety
+
+## JSON report redaction
+
+JSON reports never echo raw forbidden attribute values, log bodies, or full resource attribute maps on required-resource failures. Forbidden-data matches include metadata only (`value_length`, keys, patterns). Required-resource failures include missing key names and record indexes.
+
+Terminal output may still name matched attribute keys in failure messages. Do not treat CI logs as secret-safe if key names themselves are sensitive.

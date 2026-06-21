@@ -292,3 +292,116 @@ assertions:
 		t.Fatalf("unexpected message: %s", results[0].Message)
 	}
 }
+
+func TestEvaluateForbiddenResourceValueRedactsSecrets(t *testing.T) {
+	p, err := policy.Parse([]byte(`
+version: 1
+assertions:
+  logs:
+    forbidden_value_patterns:
+      - super-secret-api-key
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output := &telemetry.Set{
+		Logs: []telemetry.LogRecord{
+			{
+				ResourceAttributes: map[string]string{"api.key": "super-secret-api-key-12345"},
+			},
+		},
+	}
+
+	results := Evaluate(p, output, output, nil)
+	if len(results) != 1 || results[0].Status != report.StatusFail {
+		t.Fatalf("expected fail, got %+v", results)
+	}
+
+	data, err := json.Marshal(results[0].Details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "super-secret-api-key-12345") {
+		t.Fatalf("report leaked secret value: %s", data)
+	}
+}
+
+func TestEvaluateRequiredTraceResourceReportRedactsSecrets(t *testing.T) {
+	p, err := policy.Parse([]byte(`
+version: 1
+assertions:
+  traces:
+    required_resource_attributes:
+      - service.name
+      - deployment.environment
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output := &telemetry.Set{
+		Spans: []telemetry.Span{
+			{
+				ResourceAttributes: map[string]string{
+					"service.name": "checkout",
+					"api.key":      "super-secret-api-key-12345",
+				},
+			},
+		},
+	}
+
+	results := Evaluate(p, output, output, nil)
+	if len(results) != 1 || results[0].Status != report.StatusFail {
+		t.Fatalf("expected fail, got %+v", results)
+	}
+
+	data, err := json.Marshal(results[0].Details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serialized := string(data)
+	if strings.Contains(serialized, "super-secret-api-key-12345") || strings.Contains(serialized, `"resource_attributes"`) {
+		t.Fatalf("report leaked secret material: %s", serialized)
+	}
+}
+
+func TestEvaluateRequiredMetricResourceReportRedactsSecrets(t *testing.T) {
+	p, err := policy.Parse([]byte(`
+version: 1
+assertions:
+  metrics:
+    required_resource_attributes:
+      - service.name
+      - deployment.environment
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output := &telemetry.Set{
+		Metrics: []telemetry.Metric{
+			{
+				Name: "http.server.duration",
+				ResourceAttributes: map[string]string{
+					"service.name": "checkout",
+					"api.key":      "super-secret-api-key-12345",
+				},
+			},
+		},
+	}
+
+	results := Evaluate(p, output, output, nil)
+	if len(results) != 1 || results[0].Status != report.StatusFail {
+		t.Fatalf("expected fail, got %+v", results)
+	}
+
+	data, err := json.Marshal(results[0].Details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serialized := string(data)
+	if strings.Contains(serialized, "super-secret-api-key-12345") || strings.Contains(serialized, `"resource_attributes"`) {
+		t.Fatalf("report leaked secret material: %s", serialized)
+	}
+}

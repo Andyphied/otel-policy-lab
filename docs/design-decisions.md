@@ -81,7 +81,7 @@ Go was chosen because:
 
 The MVP `FixtureRunner` intentionally simulates only a subset of Collector behavior:
 
-- `attributes/*` processors with `delete` actions on resource and signal attributes
+- `attributes/*` processors with `delete` actions on resource attributes, signal attributes, and metric datapoint labels
 - `filter/*` processors that drop debug logs via regexp match hints
 - no-content-effect processors such as `batch` as explicit no-ops
 

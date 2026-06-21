@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22.4'
+          go-version-file: go.mod
 
       - name: Test
         run: make test
@@ -31,9 +31,35 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22.4'
+          go-version-file: go.mod
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.61.0
+
+  action-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build action binary like composite action
+        env:
+          CGO_ENABLED: "0"
+          GOTOOLCHAIN: local
+        run: go build -ldflags "-X main.version=ci-smoke" -o "${RUNNER_TEMP}/otel-policy-lab" ./cmd/otel-policy-lab
+
+      - name: Run passing example through built binary
+        env:
+          CGO_ENABLED: "0"
+          GOTOOLCHAIN: local
+        run: |
+          "${RUNNER_TEMP}/otel-policy-lab" test \
+            --collector-config ./examples/collector.yaml \
+            --input ./examples/fixtures/checkout.otlp.json \
+            --policy ./examples/policy-pass.yaml \
+            --report "${RUNNER_TEMP}/report.json"
