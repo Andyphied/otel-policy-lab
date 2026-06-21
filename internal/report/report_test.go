@@ -93,14 +93,22 @@ func TestPrintTerminal(t *testing.T) {
 	}, RunnerMetadata{Name: "fixture", SimulatedProcessors: []string{"batch"}, UnsupportedProcessors: []string{"transform/redact"}}, FileMetadata{}, FileMetadata{}, FileMetadata{}, SummaryStatistics{})
 
 	old := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 	PrintTerminal(rep)
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = old
 
 	buf := make([]byte, 4096)
-	n, _ := r.Read(buf)
+	n, err := r.Read(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
 	out := string(buf[:n])
 	if !strings.Contains(out, "PASS line") || !strings.Contains(out, "FAIL line") {
 		t.Fatalf("unexpected output: %s", out)
