@@ -1,5 +1,5 @@
 # Binaries
-otel-policy-lab
+/otel-policy-lab
 /bin/
 /dist/
 
@@ -26,7 +26,7 @@ Thumbs.db
 
 # Test artifacts
 report.json
-report-*.json
+/report-*.json
 coverage.out
 coverage.html
 .cursor/
