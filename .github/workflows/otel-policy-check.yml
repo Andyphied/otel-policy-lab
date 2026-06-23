@@ -1,0 +1,17 @@
+name: otel-policy
+
+on:
+  pull_request:
+
+jobs:
+  policy-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          collector-config: ./examples/collector.yaml
+          input: ./examples/fixtures/checkout.otlp.json
+          policy: ./examples/policy.yaml # intentionally fails
+          report: ./report.json
