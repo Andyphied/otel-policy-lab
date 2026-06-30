@@ -1,6 +1,10 @@
 name: otel-policy-lab
 description: Evaluate OTLP JSON fixtures against telemetry governance policies in CI.
 
+branding:
+  icon: shield
+  color: blue
+
 inputs:
   collector-config:
     description: Path to the OpenTelemetry Collector config YAML.

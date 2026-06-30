@@ -133,7 +133,7 @@ Use the repository action in CI. The action provisions Go, builds from the check
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: andyphied/otel-policy-lab@v0.1.1
+  - uses: andyphied/otel-policy-lab@v0.1.2
     with:
       collector-config: ./collector.yaml
       input: ./fixtures/checkout.otlp.json

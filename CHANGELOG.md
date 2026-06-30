@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## [0.1.2] - 2026-06-30
+
+Release notes: [`docs/releases/v0.1.2.md`](docs/releases/v0.1.2.md)
+
+### Added
+
+- GitHub Action Marketplace branding (`shield` icon, `blue` badge) in `action.yml`.
+
 ## [0.1.1] - 2026-06-30
 
 Release notes: [`docs/releases/v0.1.1.md`](docs/releases/v0.1.1.md)
@@ -54,5 +62,6 @@ Release notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)
 
 - Documented Go/pdata version pinning, span event scanning scope, and report redaction behavior.
 
+[0.1.2]: https://github.com/Andyphied/otel-policy-lab/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Andyphied/otel-policy-lab/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Andyphied/otel-policy-lab/releases/tag/v0.1.0
