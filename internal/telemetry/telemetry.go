@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 )
 
 // Set holds normalized telemetry extracted from OTLP JSON fixtures.
@@ -117,15 +116,9 @@ func (m Metric) UniqueSeriesKeys() []string {
 }
 
 func seriesKey(resourceAttrs, labels map[string]string) string {
-	parts := make([]string, 0, len(resourceAttrs)+len(labels))
-	for k, v := range resourceAttrs {
-		parts = append(parts, "resource."+k+"="+v)
-	}
-	for k, v := range labels {
-		parts = append(parts, "label."+k+"="+v)
-	}
-	sort.Strings(parts)
-	return strings.Join(parts, ",")
+	// Structural encoding prevents delimiter-containing values from collapsing
+	// distinct series. Treat nil and empty attribute maps identically.
+	return jsonKey([2]map[string]string{cloneMap(resourceAttrs), cloneMap(labels)})
 }
 
 // Clone returns a deep copy of the telemetry set.
