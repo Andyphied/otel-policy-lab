@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "otel-policy-lab real Collector report (schema 2)",
+  "description": "Fixture-local processor evidence. Schema 1 simulation reports remain a separate contract.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "overall_status",
+    "pass_count",
+    "fail_count",
+    "warn_count",
+    "checks",
+    "input",
+    "policy",
+    "collector_config",
+    "runner",
+    "timestamp",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "overall_status": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE",
+        "ERROR"
+      ]
+    },
+    "pass_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "fail_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "warn_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "inconclusive_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "error_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "status",
+          "signal",
+          "check",
+          "message"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "WARN",
+              "INCONCLUSIVE",
+              "ERROR"
+            ]
+          },
+          "signal": {
+            "type": "string"
+          },
+          "check": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "path",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "path",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "collector_config": {
+      "type": "object",
+      "required": [
+        "path",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "required": [
+        "name",
+        "scope",
+        "execution"
+      ],
+      "properties": {
+        "name": {
+          "const": "otelcol"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "execution": {
+          "type": "object",
+          "required": [
+            "binary",
+            "pipelines",
+            "timings_ms",
+            "start_timeout_ms",
+            "run_timeout_ms",
+            "settle_time_ms",
+            "exit_status"
+          ],
+          "properties": {
+            "binary": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "binary_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "harness_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "pipelines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "signal",
+                  "processors"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "signal": {
+                    "enum": [
+                      "logs",
+                      "traces",
+                      "metrics"
+                    ]
+                  },
+                  "processors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "timings_ms": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "start_timeout_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "run_timeout_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "settle_time_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "exit_status": {
+              "enum": [
+                "not_started",
+                "running",
+                "exited",
+                "signaled",
+                "forced"
+              ]
+            },
+            "exit_code": {
+              "type": "integer"
+            },
+            "failure_category": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "input_log_count",
+        "output_log_count",
+        "input_span_count",
+        "output_span_count",
+        "input_metric_count",
+        "output_metric_count",
+        "input_unique_series_count",
+        "output_unique_series_count"
+      ],
+      "properties": {
+        "input_log_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_log_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_span_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_span_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_metric_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_metric_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_unique_series_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_unique_series_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "log_volume_change_pct": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

@@ -7,17 +7,22 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/andyphied/otel-policy-lab/internal/runner"
 )
 
 const SchemaVersion = 1
+const ExecutionSchemaVersion = 2
 
 // Status represents the outcome of a check or report.
 type Status string
 
 const (
-	StatusPass Status = "PASS"
-	StatusFail Status = "FAIL"
-	StatusWarn Status = "WARN"
+	StatusPass         Status = "PASS"
+	StatusFail         Status = "FAIL"
+	StatusWarn         Status = "WARN"
+	StatusInconclusive Status = "INCONCLUSIVE"
+	StatusError        Status = "ERROR"
 )
 
 // CheckResult is a single policy evaluation result.
@@ -51,25 +56,29 @@ type SummaryStatistics struct {
 
 // RunnerMetadata describes runner coverage for this report.
 type RunnerMetadata struct {
-	Name                  string   `json:"name"`
-	SimulatedProcessors   []string `json:"simulated_processors,omitempty"`
-	UnsupportedProcessors []string `json:"unsupported_processors,omitempty"`
+	Name                  string              `json:"name"`
+	SimulatedProcessors   []string            `json:"simulated_processors,omitempty"`
+	UnsupportedProcessors []string            `json:"unsupported_processors,omitempty"`
+	Execution             *runner.Diagnostics `json:"execution,omitempty"`
+	Scope                 string              `json:"scope,omitempty"`
 }
 
 // Report is the machine-readable output of a policy run.
 type Report struct {
-	SchemaVersion int               `json:"schema_version"`
-	OverallStatus Status            `json:"overall_status"`
-	PassCount     int               `json:"pass_count"`
-	FailCount     int               `json:"fail_count"`
-	WarnCount     int               `json:"warn_count"`
-	Checks        []CheckResult     `json:"checks"`
-	Input         FileMetadata      `json:"input"`
-	Policy        FileMetadata      `json:"policy"`
-	Collector     FileMetadata      `json:"collector_config"`
-	Runner        RunnerMetadata    `json:"runner"`
-	Timestamp     time.Time         `json:"timestamp"`
-	Summary       SummaryStatistics `json:"summary"`
+	SchemaVersion     int               `json:"schema_version"`
+	OverallStatus     Status            `json:"overall_status"`
+	PassCount         int               `json:"pass_count"`
+	FailCount         int               `json:"fail_count"`
+	WarnCount         int               `json:"warn_count"`
+	InconclusiveCount int               `json:"inconclusive_count,omitempty"`
+	ErrorCount        int               `json:"error_count,omitempty"`
+	Checks            []CheckResult     `json:"checks"`
+	Input             FileMetadata      `json:"input"`
+	Policy            FileMetadata      `json:"policy"`
+	Collector         FileMetadata      `json:"collector_config"`
+	Runner            RunnerMetadata    `json:"runner"`
+	Timestamp         time.Time         `json:"timestamp"`
+	Summary           SummaryStatistics `json:"summary"`
 }
 
 // Build constructs a report from check results and metadata.
@@ -81,19 +90,43 @@ func Build(checks []CheckResult, runner RunnerMetadata, input, policy, collector
 	} else if warn > 0 {
 		overall = StatusWarn
 	}
+	schema := SchemaVersion
+	if runner.Name == "otelcol" {
+		schema = ExecutionSchemaVersion
+		if overall == StatusWarn {
+			overall = StatusPass
+		}
+	}
+	inconclusive, errors := 0, 0
+	for _, check := range checks {
+		if check.Status == StatusInconclusive {
+			inconclusive++
+		}
+		if check.Status == StatusError {
+			errors++
+		}
+	}
+	if inconclusive > 0 && fail == 0 {
+		overall = StatusInconclusive
+	}
+	if errors > 0 {
+		overall = StatusError
+	}
 	return Report{
-		SchemaVersion: SchemaVersion,
-		OverallStatus: overall,
-		PassCount:     pass,
-		FailCount:     fail,
-		WarnCount:     warn,
-		Checks:        checks,
-		Input:         input,
-		Policy:        policy,
-		Collector:     collector,
-		Runner:        runner,
-		Timestamp:     time.Now().UTC(),
-		Summary:       summary,
+		SchemaVersion:     schema,
+		OverallStatus:     overall,
+		PassCount:         pass,
+		FailCount:         fail,
+		WarnCount:         warn,
+		InconclusiveCount: inconclusive,
+		ErrorCount:        errors,
+		Checks:            checks,
+		Input:             input,
+		Policy:            policy,
+		Collector:         collector,
+		Runner:            runner,
+		Timestamp:         time.Now().UTC(),
+		Summary:           summary,
 	}
 }
 
@@ -116,15 +149,34 @@ func PrintTerminal(rep Report) {
 	}
 	fmt.Println()
 	if rep.Runner.Name != "" {
-		fmt.Printf("Runner: %s (simulated processors: %d, unsupported processors: %d)\n", rep.Runner.Name, len(rep.Runner.SimulatedProcessors), len(rep.Runner.UnsupportedProcessors))
+		if rep.Runner.Name == "otelcol" {
+			version := "version unavailable"
+			if rep.Runner.Execution != nil && rep.Runner.Execution.Version != "" {
+				version = rep.Runner.Execution.Version
+			}
+			fmt.Printf("Runner: otelcol (real processor chains; %s)\n", version)
+			fmt.Println("Scope: fixture-local; production receivers and exporters were not exercised")
+		} else {
+			fmt.Printf("Runner: %s (simulated processors: %d, unsupported processors: %d)\n", rep.Runner.Name, len(rep.Runner.SimulatedProcessors), len(rep.Runner.UnsupportedProcessors))
+		}
+	}
+	if rep.SchemaVersion == ExecutionSchemaVersion {
+		fmt.Printf("Result: %s (%d pass, %d fail, %d inconclusive, %d error, %d warn)\n", rep.OverallStatus, rep.PassCount, rep.FailCount, rep.InconclusiveCount, rep.ErrorCount, rep.WarnCount)
+		return
 	}
 	fmt.Printf("Result: %s (%d pass, %d fail, %d warn)\n", rep.OverallStatus, rep.PassCount, rep.FailCount, rep.WarnCount)
 }
 
 // ExitCode returns the process exit code for a report.
 func ExitCode(rep Report, failOnWarn bool) int {
+	if rep.OverallStatus == StatusError {
+		return 3
+	}
 	if rep.FailCount > 0 {
 		return 1
+	}
+	if rep.OverallStatus == StatusInconclusive {
+		return 4
 	}
 	if failOnWarn && rep.WarnCount > 0 {
 		return 1
