@@ -2,7 +2,7 @@
 
 ## Overview
 
-`otel-policy-lab` is a CLI policy-testing harness that evaluates representative OpenTelemetry telemetry fixtures against governance policies. The default runner simulates only a documented subset of Collector behavior and reports that confidence boundary explicitly.
+`otel-policy-lab` is a CLI policy-testing harness that evaluates representative OpenTelemetry telemetry fixtures against governance policies. The default fixture runner simulates a documented subset of Collector behaviour. The explicitly selected real runner executes processor chains in a caller-supplied binary and captures local OTLP output.
 
 ```mermaid
 flowchart LR
@@ -59,12 +59,26 @@ MVP implements `FixtureRunner`, which:
 
 The normalized `telemetry.Set` keeps only the fields required by current policies: resource attributes, signal attributes, log bodies, span status and identity, metric names, and datapoint labels. This is intentionally smaller than Collector pdata and may need to expand when `RealCollectorRunner` lands.
 
-Future `RealCollectorRunner` will:
+## Real execution boundary
 
-- start or shell out to `otelcol`
-- send fixture telemetry via OTLP
-- capture exported telemetry from a file or debug exporter
-- return real pipeline output for evaluation
+The full OTLP pdata model is retained for transmission, including timestamps, severity, metric values/types and typed attributes. The smaller `telemetry.Set` remains the policy view. Captured fragments are normalized into stable record order before evaluation. Metric cardinality is aggregated across requests and resources by metric name.
+
+```mermaid
+flowchart LR
+    source[Source YAML] --> topology[Strict topology validator]
+    topology --> harness[Private generated harness]
+    raw[Full OTLP fixture] --> receiver[Loopback OTLP receiver]
+    harness --> process[Caller-supplied Collector]
+    receiver --> processors[Original ordered processors]
+    processors --> exporter[Local OTLP exporter]
+    exporter --> capture[In-process capture server]
+    capture --> normalized[Normalized policy view]
+    normalized --> evaluator[Existing policy evaluator]
+```
+
+`internal/runner` owns YAML isolation, OTLP transport, bounded capture, diagnostics and subprocess lifecycle. It does not evaluate policy. The CLI supplies cancellation/timeouts, then converts runner failures to safe ERROR reports. Generic evaluator evidence options handle missing input and unreliable output without knowledge of runner names. The report layer keeps fixture schema 1 while real execution uses schema 2.
+
+The Collector runs from the source configuration directory with the inherited environment, in its own Unix process group. Graceful shutdown precedes capture-server shutdown. Forced cleanup and private-file removal run on every path. Source receivers, exporters, extensions and service telemetry are omitted. This is configuration isolation of trusted code, not a network sandbox. See [the real-runner contract](real-collector-runner.md).
 
 ## CI integration
 
@@ -95,7 +109,7 @@ otel-policy-lab validate --collector-config collector.yaml
 
 ## Extension points
 
-- new `PipelineRunner` implementations (`otelcol`, remote runner)
+- additional `PipelineRunner` implementations (containers, remote runner)
 - additional policy assertions (sampling, tail sampling, cost bounds)
 - SARIF output format
 - OTLP protobuf fixture support

@@ -4,7 +4,7 @@
 
 A misconfigured Collector processor can silently export an `authorization` header, delete the error spans you need during an incident, or multiply metric cardinality overnight. `otel-policy-lab` treats these as testable regressions: you give it a representative OTLP fixture, your Collector config, and a separate policy file, and it produces a CI-friendly pass/fail report.
 
-It does **not** replace the Collector or run your production pipeline. It is a fast, honest guardrail with an explicit confidence model — it tells you what it simulated and what it did not.
+It does **not** replace the Collector or run your production pipeline. It reports whether it simulated processors or executed them in your selected Collector binary, and which production components were excluded.
 
 > Treat observability pipeline changes like code: testable, reviewable, and safe before production.
 
@@ -16,7 +16,7 @@ OpenTelemetry Collector configurations are powerful and risky. A misconfigured p
 - export secrets in log attributes or resource attributes
 - explode metric cardinality and observability cost
 
-Collector already handles receiving, processing, transforming, filtering, sampling, batching, and exporting telemetry. This tool does **not** replace Collector. It sits outside the runtime path and validates representative telemetry using fixtures, explicit policy assertions, and a deliberately narrow simulated runner.
+Collector already handles receiving, processing, transforming, filtering, sampling, batching, and exporting telemetry. This tool does **not** replace Collector. It sits outside the runtime path and validates representative telemetry using fixtures, explicit policy assertions, and a choice of fixture simulation or real Collector processor-chain execution.
 
 ### Runtime path
 
@@ -52,7 +52,23 @@ make build
   --report ./report.json
 ```
 
-### Example output
+### Run real processors
+
+With your chosen Collector already installed:
+
+```sh
+./otel-policy-lab test \
+  --runner otelcol \
+  --otelcol-bin ./bin/otelcol-contrib \
+  --collector-config ./examples/collector-real.yaml \
+  --input ./examples/fixtures/checkout.otlp.json \
+  --policy ./examples/policy-pass.yaml \
+  --report ./report.json
+```
+
+This captures real processor output locally. The runner never copies production exporters, downloads a Collector, or falls back to simulation. The supplied code is trusted; configuration isolation does not sandbox processor network activity. See [real-runner usage, timing and result semantics](docs/real-collector-runner.md).
+
+### Example output (fixture runner)
 
 ```text
 PASS no forbidden log resource attributes, attributes, values, or bodies exported
@@ -111,7 +127,7 @@ otel-policy-lab test \
   --validate-collector
 ```
 
-This validates Collector configuration, but it still does not execute the full telemetry pipeline.
+With the default fixture runner this validates source configuration while still simulating processing. With `--runner otelcol`, the generated isolated configuration is validated by starting the real Collector.
 
 ## JSON report
 
@@ -141,13 +157,23 @@ steps:
       report: ./otel-policy-report.json
 ```
 
-## MVP runner note
+## Runner confidence model
+
+| Mode | Evidence | Excluded |
+| --- | --- | --- |
+| `fixture` (default) | Narrow deterministic simulation with coverage warnings | Real processor semantics and production components |
+| `otelcol` | Real processor chains in your supplied binary, with local capture | Production receivers/exporters and backend delivery |
+| Production integration tests | Deployment-specific end-to-end evidence | Outside this tool’s scope |
+
+Real runs use PASS, FAIL, INCONCLUSIVE and ERROR. Missing relevant input is inconclusive and exits 4; execution errors exit 3. Fixture reports keep schema 1 and existing terminal formatting; real runs use [schema 2](docs/report-v2.schema.json).
+
+### Fixture runner
 
 The default `fixture` runner is deterministic and simulates a small subset of Collector processor behavior: attribute deletion on resource attributes, signal attributes, and metric labels, plus narrow debug log filtering. It does **not** execute a real Collector binary.
 
 The runner emits warnings when processors are unsupported or only partially simulated. Those warnings are part of the tool's confidence model: a pass with unsupported processors should not be treated as proof of production behavior.
 
-This is an intentional MVP tradeoff. The `PipelineRunner` interface is designed so a future `otelcol` runner can shell out to a real Collector and capture exported telemetry.
+Use `--runner fixture` for fast simulation or select `--runner otelcol` explicitly for real execution. Neither result establishes production safety beyond the supplied fixture.
 
 See [`docs/design-decisions.md`](docs/design-decisions.md).
 
@@ -156,12 +182,14 @@ See [`docs/design-decisions.md`](docs/design-decisions.md).
 - Replace OpenTelemetry Collector
 - Run in the production telemetry path
 - Guarantee production safety from fixtures alone
-- Support every Collector processor in MVP
-- Implement full OTTL/filter/transform/sampling semantics
+- Guarantee compatibility with every custom Collector distribution or topology
+- Simulate full OTTL/filter/transform/sampling semantics in the fixture runner
 - Provide cost estimation or secret scanning (planned)
 
 ## Documentation
 
+- [Real Collector runner](docs/real-collector-runner.md)
+- [Test plan and acceptance evidence](docs/TESTPLAN.md)
 - [Architecture](docs/architecture.md)
 - [Design decisions](docs/design-decisions.md)
 - [Failure modes](docs/failure-modes.md)

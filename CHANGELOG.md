@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### v0.2.0 candidate
+
+- Added explicit real Collector processor-chain execution, local three-signal OTLP capture, strict topology checks and bounded process cleanup.
+- Added schema 2 provenance with ERROR/INCONCLUSIVE outcomes, retaining the fixture schema 1 contract.
+- Added real-runner action inputs/report output, a checksum-pinned integration suite and a real processor example.
+- Corrected metric cardinality aggregation across requests/resources and series identifier collisions for both runners.
+- Documented the trusted-code isolation boundary, timing limits and three distinct confidence levels.
+
+Release candidate notes: [`docs/releases/v0.2.0.md`](docs/releases/v0.2.0.md)
+
 ## [0.1.2] - 2026-06-30
 
 Release notes: [`docs/releases/v0.1.2.md`](docs/releases/v0.1.2.md)

@@ -30,3 +30,7 @@ otel-policy-lab test \
 ```
 
 Expected result: exit code `0` with warnings. The warnings are intentional: the fixture runner partially simulates some Collector behavior and does not simulate span dropping or sampling.
+
+## Real Collector example
+
+Use `collector-real.yaml` with `--runner otelcol --otelcol-bin <your-binary>`, the checkout fixture, and `policy-pass.yaml`. This source uses actual OTTL filter and transform expressions; `collector.yaml` remains the established fixture-simulator example. The real harness replaces its production exporter with local capture. See [usage](../docs/real-collector-runner.md).

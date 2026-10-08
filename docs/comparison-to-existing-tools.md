@@ -7,7 +7,7 @@ Most adjacent tooling falls into one of two buckets:
 1. **Config-level checks** — lint the Collector YAML for syntax, wiring, or compliance rules.
 2. **Output-level checks** — run representative telemetry through a pipeline and assert on what comes out.
 
-`otel-policy-lab` lives in the second bucket. The gap it targets is a standalone, repo-friendly guardrail that combines **separate policy files**, **OTLP fixtures**, **cross-signal governance assertions** (logs, traces, metrics), and **CI-friendly pass/fail reports**. No mature tool in the ecosystem covers that full combination today.
+`otel-policy-lab` lives in the second bucket. The gap it targets is a standalone, repo-friendly guardrail that combines **separate policy files**, **OTLP fixtures**, **cross-signal governance assertions** (logs, traces, metrics), and **CI-friendly pass/fail reports**. Runner selection determines whether the evidence comes from simulation or actual processors.
 
 ## Comparison Table
 
@@ -44,6 +44,7 @@ The useful boundary is policy-as-code for **telemetry governance outcomes**:
 - checks run locally and in CI
 - output is human-readable and machine-readable
 - fixture runner limitations are visible in warnings
+- real processor chains can execute in a caller-supplied Collector with local capture and provenance
 - real Collector config validation is available through `otelcol validate`
 
 This makes `otel-policy-lab` a pre-deploy guardrail, not a replacement for production validation or observability backend controls.
@@ -59,6 +60,6 @@ These tools solve adjacent problems and are worth using alongside `otel-policy-l
 
 ## Honest Limitations
 
-The default `fixture` runner does not execute a full Collector pipeline. It simulates only a documented subset and warns when it cannot prove Collector behavior.
+The default `fixture` runner simulates a documented subset. `--runner otelcol` executes real processor chains but replaces production receivers and exporters. Complete production integration remains a separate confidence level.
 
 Use this tool to catch representative telemetry-policy regressions. Do not treat a passing fixture run as proof that production telemetry will always be safe.

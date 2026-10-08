@@ -33,14 +33,14 @@ Mitigation:
 
 - rotate fixtures from production-like scenarios
 - review and expand forbidden value/body patterns as services evolve
-- add future `RealCollectorRunner` validation before high-risk deploys
+- use `--runner otelcol` with the deployed binary version for processor changes
 - combine policy checks with secret scanning and cost monitoring in production
 
 ## Nondeterministic sampling
 
 Collector tail sampling and probabilistic head sampling can produce different outputs across runs.
 
-MVP does not model sampling nondeterminism. Preservation checks are deterministic against fixtures.
+The fixture runner does not sample. The real runner executes the supplied sampler and may vary across runs; a short settling period can also leave decisions pending.
 
 Mitigation:
 
@@ -75,9 +75,9 @@ Symptoms:
 Mitigation:
 
 - run `otel-policy-lab validate --collector-config <path> --otelcol-bin <pinned-binary>` in CI
-- pin Collector version in future `RealCollectorRunner`
-- record Collector version in JSON report metadata (planned)
-- run policy tests in CI with the same Collector image used in production
+- supply an explicitly pinned binary to `--runner otelcol`
+- inspect Collector version and binary checksum in schema 2 reports
+- run policy tests in CI with the same Collector distribution and version used in production
 
 ## Incomplete runner simulation
 
@@ -132,7 +132,7 @@ Mitigation:
 
 If a policy asserts `forbidden_*` checks for a signal but the evaluated output contains zero records of that signal, the forbidden check passes because there is nothing to match.
 
-Example: a logs-only fixture with trace forbidden-attribute rules passes trace checks vacuously.
+In the fixture runner, a logs-only fixture with trace forbidden-attribute rules passes trace checks vacuously. The real runner marks those checks INCONCLUSIVE and exits nonzero. Empty output after an intentional filter can still legitimately pass forbidden-data checks.
 
 Mitigation:
 
@@ -144,3 +144,7 @@ Mitigation:
 JSON reports never echo raw forbidden attribute values, log bodies, or full resource attribute maps on required-resource failures. Forbidden-data matches include metadata only (`value_length`, keys, patterns). Required-resource failures include missing key names and record indexes.
 
 Terminal output may still name matched attribute keys in failure messages. Do not treat CI logs as secret-safe if key names themselves are sensitive.
+
+## Real execution errors
+
+Unsupported topology, missing components, invalid processor configuration, OTLP partial success, capture limits, startup/run/shutdown deadlines and abnormal process exit produce ERROR. Missing relevant input or known unreliable output produces INCONCLUSIVE. Neither becomes PASS. See [the real-runner contract](real-collector-runner.md) for settling, inherited environment, trusted-code boundaries and cleanup behaviour.

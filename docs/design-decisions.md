@@ -75,7 +75,7 @@ Go was chosen because:
 - OpenTelemetry Collector is written in Go
 - single-binary CLI distribution is simple
 - testing and module ecosystem are mature
-- future `otelcol` integration is natural
+- standard OTLP integration and Collector subprocess management fit the ecosystem
 
 ## FixtureRunner tradeoff (MVP)
 
@@ -95,24 +95,21 @@ It does **not**:
 
 The runner emits warnings for unsupported processors and partial simulations. A policy pass with runner warnings should be treated as a useful regression signal, not proof of real Collector behavior.
 
-Trace preservation checks are fixture-local with the default runner because it does not simulate span dropping or sampling. When the fixture runner emits its trace-preservation warning, a passing preservation check is annotated in the report so users do not confuse fixture equality with real sampling behavior. A future real runner will make that check more meaningful.
+Trace preservation checks are fixture-local with the default runner because it does not simulate span dropping or sampling. When the fixture runner emits its trace-preservation warning, a passing preservation check is annotated in the report so users do not confuse fixture equality with real sampling behavior. The real runner exercises actual sampling and preserves this distinction in its provenance.
 
 ## Go and pdata version pinning
 
 `go.mod` pins Go `1.22.4` and `go.opentelemetry.io/collector/pdata v1.25.0` so CI, local builds, and OTLP JSON parsing stay aligned with a known Collector pdata release line. Upgrade both together when bumping pdata.
 
-## Future RealCollectorRunner design
+## RealCollectorRunner design (v0.2)
 
-A future runner will:
+Use a caller-supplied executable and standard OTLP gRPC boundaries rather than embedding processors or requiring a contrib file exporter. Preserve inline processor YAML as nodes and validate topology independently from the simulator. The binary remains responsible for component configuration and processor behaviour.
 
-1. Write a temporary Collector config with a file/debug exporter.
-2. Start `otelcol` as a subprocess (or connect to a pinned container image).
-3. Send fixture telemetry via OTLP gRPC/HTTP.
-4. Capture exported telemetry from the configured exporter.
-5. Normalize captured output into the same `telemetry.Set` model.
-6. Return results to the existing evaluator unchanged.
+Replace receivers/exporters with loopback harness components; reject connectors and multiple pipelines per signal. Keep full pdata until transport is complete and use the existing normalized model for policy evaluation. Run from the source configuration directory so relative processor resources have a documented base.
 
-This preserves the current architecture: only the runner changes, not policy or reporting.
+Capture remains alive during graceful shutdown. Timeouts, cancellation and abnormal exit never become policy failures or trigger fixture fallback. The trusted subprocess inherits environment variables; source exporter isolation is not an OS network sandbox. Raw diagnostics remain private and bounded.
+
+Real reports use schema 2 with explicit inconclusive/error outcomes and execution provenance. Fixture schema 1 and golden terminal formatting remain stable. v0.2 also corrects cardinality aggregation across records and ambiguous series identifiers for both runners.
 
 ## Exit code semantics
 
@@ -122,6 +119,7 @@ This preserves the current architecture: only the runner changes, not policy or 
 | 1 | Policy failure |
 | 2 | Usage, parsing, or report write error |
 | 3 | Pipeline runner execution error |
+| 4 | Real-runner assertion evidence is inconclusive |
 
 ## Deliberate MVP limitations
 
