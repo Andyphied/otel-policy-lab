@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -17,6 +18,7 @@ type RunRequest struct {
 	FixturePath         string
 	CollectorConfigPath string
 	Fixture             *telemetry.Set
+	Raw                 *telemetry.OTLP
 }
 
 // RunResult contains captured telemetry and run metadata.
@@ -27,6 +29,18 @@ type RunResult struct {
 	RunnerWarnings        []string
 	SimulatedProcessors   []string
 	UnsupportedProcessors []string
+	Diagnostics           *Diagnostics
+	InconclusiveReasons   []string
+	InconclusiveSignals   map[string][]string
+}
+
+// Options controls the real Collector process. Supplying options permits a zero
+// SettleTime; omitting options uses the default settling interval.
+type Options struct {
+	Binary       string
+	StartTimeout time.Duration
+	RunTimeout   time.Duration
+	SettleTime   time.Duration
 }
 
 // PipelineRunner executes or simulates a Collector pipeline.
@@ -35,12 +49,30 @@ type PipelineRunner interface {
 }
 
 // New returns a PipelineRunner for the given runner name.
-func New(name string) (PipelineRunner, error) {
+func New(name string, options ...Options) (PipelineRunner, error) {
 	switch name {
 	case "fixture", "":
 		return &FixtureRunner{}, nil
+	case "otelcol":
+		opts := Options{StartTimeout: 10 * time.Second, RunTimeout: 30 * time.Second, SettleTime: 500 * time.Millisecond}
+		if len(options) > 1 {
+			return nil, fmt.Errorf("at most one runner options value is permitted")
+		}
+		if len(options) == 1 {
+			opts = options[0]
+			if opts.StartTimeout == 0 {
+				opts.StartTimeout = 10 * time.Second
+			}
+			if opts.RunTimeout == 0 {
+				opts.RunTimeout = 30 * time.Second
+			}
+		}
+		if opts.StartTimeout <= 0 || opts.RunTimeout <= 0 || opts.SettleTime < 0 {
+			return nil, fmt.Errorf("runner timeouts must be positive and settle time must be nonnegative")
+		}
+		return &CollectorRunner{options: opts}, nil
 	default:
-		return nil, fmt.Errorf("unsupported runner %q (supported: fixture)", name)
+		return nil, fmt.Errorf("unsupported runner %q (supported: fixture, otelcol)", name)
 	}
 }
 
