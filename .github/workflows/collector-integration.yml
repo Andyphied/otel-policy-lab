@@ -1,0 +1,127 @@
+name: real-collector-integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  collector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Provision checksum-pinned Collector test dependency
+        shell: bash
+        run: |
+          bash scripts/provision-test-collector.sh "$RUNNER_TEMP/collector"
+          echo "OTELCOL_BIN=$RUNNER_TEMP/collector/otelcol-contrib" >> "$GITHUB_ENV"
+
+      - name: Run mandatory real Collector integration tests
+        env:
+          OTELCOL_INTEGRATION_REQUIRED: "1"
+        run: go test -race -count=1 -timeout=5m -v ./internal/runner -run '^TestOTelcolIntegration'
+
+      - name: Prepare action smoke cases
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
+          cat > "$RUNNER_TEMP/smoke/input.json" <<'JSON'
+          {"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":{"stringValue":"checkout completed"},"attributes":[{"key":"password","value":{"stringValue":"ci-secret-never-print"}}]}]}]}]}
+          JSON
+          cat > "$RUNNER_TEMP/smoke/policy.yaml" <<'YAML'
+          version: 1
+          assertions:
+            logs:
+              forbidden_attributes: [password]
+          YAML
+          cat > "$RUNNER_TEMP/smoke/pass.yaml" <<'YAML'
+          receivers:
+            otlp: {}
+          processors:
+            attributes/redact:
+              actions:
+                - key: password
+                  action: delete
+          exporters:
+            debug: {}
+          service:
+            pipelines:
+              logs:
+                receivers: [otlp]
+                processors: [attributes/redact]
+                exporters: [debug]
+          YAML
+          sed 's/key: password/key: unrelated/' "$RUNNER_TEMP/smoke/pass.yaml" > "$RUNNER_TEMP/smoke/fail.yaml"
+
+      - name: Passing action with supplied Collector
+        id: pass
+        uses: ./
+        with:
+          runner: otelcol
+          otelcol-bin: ${{ env.OTELCOL_BIN }}
+          collector-config: ${{ runner.temp }}/smoke/pass.yaml
+          input: ${{ runner.temp }}/smoke/input.json
+          policy: ${{ runner.temp }}/smoke/policy.yaml
+          report: ${{ runner.temp }}/smoke/pass-report.json
+
+      - name: Failing action preserves report output
+        id: fail
+        continue-on-error: true
+        uses: ./
+        with:
+          runner: otelcol
+          otelcol-bin: ${{ env.OTELCOL_BIN }}
+          collector-config: ${{ runner.temp }}/smoke/fail.yaml
+          input: ${{ runner.temp }}/smoke/input.json
+          policy: ${{ runner.temp }}/smoke/policy.yaml
+          report: ${{ runner.temp }}/smoke/fail-report.json
+
+      - name: Verify action statuses, report outputs and secrecy
+        env:
+          PASS_REPORT: ${{ steps.pass.outputs.report-path }}
+          FAIL_REPORT: ${{ steps.fail.outputs.report-path }}
+          FAIL_OUTCOME: ${{ steps.fail.outcome }}
+        shell: bash
+        run: |
+          [[ "$FAIL_OUTCOME" == failure ]]
+          python3 - <<'PY'
+          import json, os
+          for name, expected in [("PASS_REPORT", "PASS"), ("FAIL_REPORT", "FAIL")]:
+              path = os.environ[name]
+              assert path, f"{name} output missing"
+              raw = open(path).read()
+              assert "ci-secret-never-print" not in raw
+              report = json.loads(raw)
+              assert report["schema_version"] == 2
+              assert report["overall_status"] == expected, report
+              assert report["runner"]["name"] == "otelcol"
+          PY
+
+      - name: Measure three-signal checkout run against 15-second target
+        shell: bash
+        run: |
+          start=$SECONDS
+          "$RUNNER_TEMP/otel-policy-lab" test --runner otelcol \
+            --otelcol-bin "$OTELCOL_BIN" \
+            --collector-config examples/collector-real.yaml \
+            --input examples/fixtures/checkout.otlp.json \
+            --policy examples/policy-pass.yaml \
+            --report "$RUNNER_TEMP/smoke/timing-report.json"
+          elapsed=$((SECONDS - start))
+          echo "Three-signal checkout run: ${elapsed}s (target <=15s)" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$elapsed" -le 15 ]]
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: collector-integration-reports
+          path: ${{ runner.temp }}/smoke/*report.json
+          if-no-files-found: ignore

@@ -1,0 +1,47 @@
+# Source configuration for real-processor testing. The source OTLP endpoint is
+# never copied into the test harness. Use your own explicit Collector binary.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+processors:
+  attributes/redact:
+    actions:
+      - {key: authorization, action: delete}
+      - {key: password, action: delete}
+      - {key: request.body, action: delete}
+  filter/debug:
+    error_mode: propagate
+    logs:
+      log_record:
+        - 'IsMatch(body, "^debug")'
+  transform/labels:
+    error_mode: propagate
+    metric_statements:
+      - context: datapoint
+        statements:
+          - delete_key(attributes, "user.id")
+          - delete_key(attributes, "session.id")
+          - delete_key(attributes, "request.id")
+  batch:
+    timeout: 1s
+exporters:
+  otlp/production:
+    endpoint: observability-backend:4317
+    tls:
+      insecure: true
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [attributes/redact, filter/debug, batch]
+      exporters: [otlp/production]
+    traces:
+      receivers: [otlp]
+      processors: [attributes/redact, batch]
+      exporters: [otlp/production]
+    metrics:
+      receivers: [otlp]
+      processors: [transform/labels, batch]
+      exporters: [otlp/production]

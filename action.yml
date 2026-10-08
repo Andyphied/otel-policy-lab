@@ -28,9 +28,27 @@ inputs:
     required: false
     default: "false"
   otelcol-bin:
-    description: otelcol binary path or name used for validation.
+    description: Explicit preinstalled Collector binary for the real runner, or validation binary.
     required: false
-    default: otelcol
+    default: ""
+  runner:
+    description: Execution strategy (fixture or otelcol). The action never installs a Collector.
+    required: false
+    default: fixture
+  collector-start-timeout:
+    description: Maximum Collector startup time.
+    default: 10s
+  collector-run-timeout:
+    description: Total Collector run deadline.
+    default: 30s
+  collector-settle-time:
+    description: Settling interval before graceful shutdown.
+    default: 500ms
+
+outputs:
+  report-path:
+    description: Requested JSON report path; available for artifact upload with always().
+    value: ${{ steps.policy-check.outputs.report-path }}
 
 runs:
   using: composite
@@ -49,17 +67,42 @@ runs:
         go build -ldflags "-X main.version=action" -o "${RUNNER_TEMP}/otel-policy-lab" ./cmd/otel-policy-lab
 
     - name: Run policy checks
+      id: policy-check
       shell: bash
+      env:
+        COLLECTOR_CONFIG: ${{ inputs.collector-config }}
+        FIXTURE_INPUT: ${{ inputs.input }}
+        POLICY_INPUT: ${{ inputs.policy }}
+        REPORT_PATH: ${{ inputs.report }}
+        RUNNER_KIND: ${{ inputs.runner }}
+        OTELCOL_BINARY: ${{ inputs.otelcol-bin }}
+        FAIL_ON_WARN: ${{ inputs.fail-on-warn }}
+        VALIDATE_COLLECTOR: ${{ inputs.validate-collector }}
+        COLLECTOR_START_TIMEOUT: ${{ inputs.collector-start-timeout }}
+        COLLECTOR_RUN_TIMEOUT: ${{ inputs.collector-run-timeout }}
+        COLLECTOR_SETTLE_TIME: ${{ inputs.collector-settle-time }}
       run: |
+        if [[ "$REPORT_PATH" == *$'\n'* || "$REPORT_PATH" == *$'\r'* ]]; then
+          echo "Report path must not contain newlines" >&2
+          exit 2
+        fi
+        printf 'report-path=%s\n' "$REPORT_PATH" >> "$GITHUB_OUTPUT"
         args=(
           test
-          --collector-config "${{ inputs.collector-config }}"
-          --input "${{ inputs.input }}"
-          --policy "${{ inputs.policy }}"
-          --report "${{ inputs.report }}"
-          --fail-on-warn=${{ inputs.fail-on-warn }}
+          --collector-config "$COLLECTOR_CONFIG"
+          --input "$FIXTURE_INPUT"
+          --policy "$POLICY_INPUT"
+          --report "$REPORT_PATH"
+          --runner "$RUNNER_KIND"
+          --fail-on-warn="$FAIL_ON_WARN"
+          --collector-start-timeout "$COLLECTOR_START_TIMEOUT"
+          --collector-run-timeout "$COLLECTOR_RUN_TIMEOUT"
+          --collector-settle-time "$COLLECTOR_SETTLE_TIME"
         )
-        if [[ "${{ inputs.validate-collector }}" == "true" ]]; then
-          args+=(--validate-collector --otelcol-bin "${{ inputs.otelcol-bin }}")
+        if [[ -n "$OTELCOL_BINARY" ]]; then
+          args+=(--otelcol-bin "$OTELCOL_BINARY")
+        fi
+        if [[ "$VALIDATE_COLLECTOR" == "true" ]]; then
+          args+=(--validate-collector)
         fi
         "${RUNNER_TEMP}/otel-policy-lab" "${args[@]}"
