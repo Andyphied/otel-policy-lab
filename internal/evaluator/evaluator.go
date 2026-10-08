@@ -12,6 +12,18 @@ import (
 
 // Evaluate runs policy checks against input and output telemetry.
 func Evaluate(p *policy.Policy, input, output *telemetry.Set, runnerWarnings []string) []report.CheckResult {
+	return EvaluateWithOptions(p, input, output, runnerWarnings, Options{})
+}
+
+// Options controls evidence requirements independently of execution strategy.
+type Options struct {
+	RequireApplicableInput  bool
+	UnreliableOutputReasons []string
+	UnreliableSignals       map[string][]string
+}
+
+// EvaluateWithOptions evaluates assertions with explicit evidence requirements.
+func EvaluateWithOptions(p *policy.Policy, input, output *telemetry.Set, runnerWarnings []string, options Options) []report.CheckResult {
 	var results []report.CheckResult
 
 	if p.Assertions.Logs != nil {
@@ -22,6 +34,43 @@ func Evaluate(p *policy.Policy, input, output *telemetry.Set, runnerWarnings []s
 	}
 	if p.Assertions.Metrics != nil {
 		results = append(results, evalMetrics(p.Assertions.Metrics, output)...)
+	}
+	for i := range results {
+		reason := ""
+		if options.RequireApplicableInput {
+			switch results[i].Signal {
+			case "logs":
+				if len(input.Logs) == 0 {
+					reason = "no logs in fixture"
+				}
+			case "traces":
+				if len(input.Spans) == 0 {
+					reason = "no spans in fixture"
+				}
+				if results[i].Check == "preserve_error_traces" && len(errorSpans(input)) == 0 {
+					reason = "no error spans in fixture"
+				}
+			case "metrics":
+				points := 0
+				for _, m := range input.Metrics {
+					points += len(m.Datapoints)
+				}
+				if points == 0 {
+					reason = "no metric datapoints in fixture"
+				}
+			}
+		}
+		if len(options.UnreliableOutputReasons) > 0 {
+			reason = strings.Join(options.UnreliableOutputReasons, "; ")
+		}
+		if scoped := options.UnreliableSignals[results[i].Signal]; len(scoped) > 0 {
+			reason = strings.Join(scoped, "; ")
+		}
+		if reason != "" && !conclusiveObservation(results[i], input) {
+			results[i].Status = report.StatusInconclusive
+			results[i].Message = fmt.Sprintf("%s cannot be evaluated reliably: %s", results[i].Check, reason)
+			results[i].Details = nil
+		}
 	}
 
 	for _, warning := range runnerWarnings {
@@ -34,6 +83,25 @@ func Evaluate(p *policy.Policy, input, output *telemetry.Set, runnerWarnings []s
 	}
 
 	return results
+}
+
+// Incomplete capture cannot disprove an observed violation. Conversely, missing
+// records can be an unfinished processor decision rather than a policy failure.
+func conclusiveObservation(check report.CheckResult, input *telemetry.Set) bool {
+	if check.Check == "preserve_error_traces" && check.Status == report.StatusPass && len(errorSpans(input)) > 0 {
+		return true // Every requested input identity was actually captured.
+	}
+	if check.Status != report.StatusFail {
+		return false
+	}
+	switch check.Check {
+	case "forbidden_data", "forbidden_labels", "max_series_per_metric":
+		return true
+	case "required_resource_attributes":
+		total, _ := check.Details["total_records"].(int)
+		return total > 0
+	}
+	return false
 }
 
 func evalLogs(assertions *policy.LogsAssertions, output *telemetry.Set) []report.CheckResult {
@@ -174,16 +242,34 @@ func evalErrorTracePreservation(input, output *telemetry.Set, runnerWarnings []s
 func evalMaxSeries(output *telemetry.Set, limit int) []report.CheckResult {
 	var results []report.CheckResult
 	violations := 0
+	// OTLP exporters may split one metric over resources and requests. The
+	// policy limit is per metric name, not per export request or resource block.
+	seriesByName := make(map[string]map[string]struct{})
+	pointCounts := make(map[string]int)
 	for _, metric := range output.Metrics {
-		series := metric.UniqueSeriesCount()
+		if seriesByName[metric.Name] == nil {
+			seriesByName[metric.Name] = make(map[string]struct{})
+		}
+		for _, key := range metric.UniqueSeriesKeys() {
+			seriesByName[metric.Name][key] = struct{}{}
+		}
+		pointCounts[metric.Name] += len(metric.Datapoints)
+	}
+	names := make([]string, 0, len(seriesByName))
+	for name := range seriesByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		series := len(seriesByName[name])
 		if series > limit {
 			violations++
 			results = append(results, fail("metrics", "max_series_per_metric",
-				fmt.Sprintf("metric %s has %s unique series; limit is %s", metric.Name, report.FormatSeries(series), report.FormatSeries(limit)),
+				fmt.Sprintf("metric %s has %s unique series; limit is %s", name, report.FormatSeries(series), report.FormatSeries(limit)),
 				map[string]any{
-					"metric":              metric.Name,
+					"metric":              name,
 					"unique_series_count": series,
-					"datapoint_count":     len(metric.Datapoints),
+					"datapoint_count":     pointCounts[name],
 					"limit":               limit,
 				}))
 		}
